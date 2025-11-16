@@ -1,3 +1,23 @@
+# Find Unblocked Issues Action
+
+This GitHub Action detects issues that were unblocked by the closing of another issue.
+
+## Inputs
+
+| Name    | Description                                                  | Required |
+|---------|--------------------------------------------------------------|----------|
+| `token` | `GITHUB_TOKEN` or a PAT with `issues:read` and `orgs:read`. | `true`   |
+
+## Outputs
+
+| Name         | Description                                                      |
+|--------------|------------------------------------------------------------------|
+| `issues`     | A JSON array of issue numbers that are now unblocked.            |
+| `has_issues` | A boolean string (`"true"` or `"false"`) if any were found.      |
+
+## Usage
+
+```yaml
 name: Handle Unblocked Issues
 
 on:
@@ -22,7 +42,7 @@ jobs:
 
       - name: Find Unblocked Issues
         id: finder
-        # Point to the local action folder we created in Part 1
+        # Replace with your-username/your-repo-name@v1
         uses: ./.github/actions
         with:
           token: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
@@ -52,3 +72,4 @@ jobs:
                issue_number: ${{ matrix.issue-number }},
                labels: ['ready-for-dev']
              });
+```
