@@ -67,9 +67,11 @@ runs:
     - id: check_count
       shell: bash
       run: |
-        count=$(echo '${{ steps.scanner.outputs.result }}' | jq '. | length')
+        count=$(echo "$SCANNER_RESULT" | jq '. | length')
         if [ "$count" -gt "0" ]; then
           echo "has_issues=true" >> $GITHUB_OUTPUT
         else
           echo "has_issues=false" >> $GITHUB_OUTPUT
         fi
+      env:
+        SCANNER_RESULT: ${{ steps.scanner.outputs.result }}
