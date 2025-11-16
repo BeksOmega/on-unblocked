@@ -12,6 +12,10 @@ outputs:
     description: 'Boolean string ("true" or "false") indicating if any were found'
     value: ${{ steps.check_count.outputs.has_issues }}
 
+branding:
+  icon: 'unlock'
+  color: 'blue'
+
 runs:
   using: "composite"
   steps:
