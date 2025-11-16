@@ -18,8 +18,6 @@ runs:
     - id: scanner
       name: Scan Dependencies
       uses: actions/github-script@v7
-      env:
-        AUTH_TOKEN: ${{ inputs.token }}
       with:
         # We use the passed input token for the API calls
         github-token: ${{ inputs.token }}
@@ -31,9 +29,7 @@ runs:
 
           // 1. List all OPEN issues
           // Note: We use the input token specifically for the scan to ensure scope access
-          const octokit = github.getOctokit(process.env.AUTH_TOKEN);
-          
-          const openIssues = await octokit.paginate(octokit.rest.issues.listForRepo, {
+          const openIssues = await github.paginate(github.rest.issues.listForRepo, {
             owner, repo, state: 'open',
           });
 
@@ -42,7 +38,7 @@ runs:
           for (const issue of openIssues) {
             try {
               // 2. Check Upstream Dependencies (The verified endpoint)
-              const { data: blockers } = await octokit.request('GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by', {
+              const { data: blockers } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by', {
                   owner, repo, issue_number: issue.number,
                   headers: { 'X-GitHub-Api-Version': '2022-11-28' }
               });
