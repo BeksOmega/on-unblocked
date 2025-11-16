@@ -42,7 +42,7 @@ jobs:
 
       - name: Find Unblocked Issues
         id: finder
-        # Replace with your-username/your-repo-name@v1
+        # Replace with BeksOmega/on-unblocked@v1
         uses: ./.github/actions
         with:
           token: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
