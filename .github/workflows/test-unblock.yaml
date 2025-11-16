@@ -4,6 +4,10 @@ on:
   issues:
     types: [closed]
 
+permissions:
+  # For the labeling
+  issues: write
+
 jobs:
   # JOB 1: Find the issues
   detect-unblocked:
