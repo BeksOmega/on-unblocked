@@ -6,7 +6,7 @@ This GitHub Action detects issues that were unblocked by the closing of another 
 
 | Name    | Description                                                  | Required |
 |---------|--------------------------------------------------------------|----------|
-| `token` | `GITHUB_TOKEN` or a PAT with `issues:read` and `orgs:read`. | `true`   |
+| `token` | `GITHUB_TOKEN` or a PAT with `issues:read` and `orgs:read`. | `false`  |
 
 ## Outputs
 
@@ -17,6 +17,8 @@ This GitHub Action detects issues that were unblocked by the closing of another 
 
 ## Usage
 
+**Note:** When using the default `GITHUB_TOKEN`, you must grant `issues: read` permission to the job or workflow.
+
 ```yaml
 name: Handle Unblocked Issues
 
@@ -25,7 +27,9 @@ on:
     types: [closed]
 
 permissions:
-  # For the labeling
+  # Required for this action to read issues
+  issues: read
+  # Required for the labeling job
   issues: write
 
 jobs:
@@ -43,8 +47,6 @@ jobs:
       - name: Find Unblocked Issues
         id: finder
         uses: BeksOmega/on-unblocked@v1
-        with:
-          token: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
   # JOB 2: Run generic actions for EACH unblocked issue
   process-unblocked-issues:
