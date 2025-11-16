@@ -1,0 +1,79 @@
+name: 'Find Unblocked Issues'
+description: 'Detects issues that were unblocked by the closing of the current issue.'
+inputs:
+  token:
+    description: 'GITHUB_TOKEN or PAT with access to read issues and orgs'
+    required: true
+outputs:
+  issues:
+    description: 'A JSON array of issue numbers that are now unblocked (e.g. [12, 45])'
+    value: ${{ steps.scanner.outputs.result }}
+  has_issues:
+    description: 'Boolean string ("true" or "false") indicating if any were found'
+    value: ${{ steps.check_count.outputs.has_issues }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: scanner
+      name: Scan Dependencies
+      uses: actions/github-script@v7
+      env:
+        AUTH_TOKEN: ${{ inputs.token }}
+      with:
+        # We use the passed input token for the API calls
+        github-token: ${{ inputs.token }}
+        script: |
+          const closedIssueNum = context.issue.number;
+          const { owner, repo } = context.repo;
+          
+          console.log(`Checking for issues waiting on #${closedIssueNum}...`);
+
+          // 1. List all OPEN issues
+          // Note: We use the input token specifically for the scan to ensure scope access
+          const octokit = github.getOctokit(process.env.AUTH_TOKEN);
+          
+          const openIssues = await octokit.paginate(octokit.rest.issues.listForRepo, {
+            owner, repo, state: 'open',
+          });
+
+          let unblockedList = [];
+
+          for (const issue of openIssues) {
+            try {
+              // 2. Check Upstream Dependencies (The verified endpoint)
+              const { data: blockers } = await octokit.request('GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by', {
+                  owner, repo, issue_number: issue.number,
+                  headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+              });
+
+              // 3. Logic: Was it blocked by the closed issue?
+              const wasBlockedByThis = blockers.some(b => b.number === closedIssueNum);
+
+              if (wasBlockedByThis) {
+                 // 4. Logic: Is it now fully clear? (No other open blockers)
+                 const remainingBlockers = blockers.filter(b => b.number !== closedIssueNum && b.state === 'open');
+                 
+                 if (remainingBlockers.length === 0) {
+                    console.log(`-> Issue #${issue.number} is UNBLOCKED.`);
+                    // Add metadata if you want more than just the number later
+                    unblockedList.push(issue.number); 
+                 }
+              }
+            } catch (err) {
+               // 404s or 403s just mean we skip that issue
+            }
+          }
+          
+          console.log(`Found ${unblockedList.length} unblocked issues.`);
+          return unblockedList;
+
+    - id: check_count
+      shell: bash
+      run: |
+        count=$(echo '${{ steps.scanner.outputs.result }}' | jq '. | length')
+        if [ "$count" -gt "0" ]; then
+          echo "has_issues=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_issues=false" >> $GITHUB_OUTPUT
+        fi
