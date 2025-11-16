@@ -6,7 +6,7 @@ This GitHub Action detects issues that were unblocked by the closing of another 
 
 | Name    | Description                                                  | Required |
 |---------|--------------------------------------------------------------|----------|
-| `token` | `GITHUB_TOKEN` or a PAT with `issues:read` and `orgs:read`. | `true`   |
+| `token` | `GITHUB_TOKEN` or a PAT with `issues:read` and `orgs:read`. Defaults to the workflow's `GITHUB_TOKEN`. | `false`  |
 
 ## Outputs
 
@@ -43,8 +43,6 @@ jobs:
       - name: Find Unblocked Issues
         id: finder
         uses: BeksOmega/on-unblocked@v1
-        with:
-          token: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
   # JOB 2: Run generic actions for EACH unblocked issue
   process-unblocked-issues:
