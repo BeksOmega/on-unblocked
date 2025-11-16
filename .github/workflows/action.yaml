@@ -1,97 +1,79 @@
-name: Unblock Dry Run (Read Only)
-
-on:
+name: 'Find Unblocked Issues'
+description: 'Detects issues that were unblocked by the closing of the current issue.'
+inputs:
+  token:
+    description: 'GITHUB_TOKEN or PAT with access to read issues and orgs'
+    required: true
+outputs:
   issues:
-    types: [closed]
+    description: 'A JSON array of issue numbers that are now unblocked (e.g. [12, 45])'
+    value: ${{ steps.scanner.outputs.result }}
+  has_issues:
+    description: 'Boolean string ("true" or "false") indicating if any were found'
+    value: ${{ steps.check_count.outputs.has_issues }}
 
-jobs:
-  dry-run-check:
-    runs-on: ubuntu-latest
-    permissions:
-      issues: read # strictly read-only
-      contents: read
-    steps:
-      - name: Dry Run - Check Dependencies
-        uses: actions/github-script@v7
-        env:
-          # Update this to match your team slug
-          TEAM_SLUG: "my-team-slug" 
-          ORG_NAME: ${{ github.repository_owner }}
-          # Still needed to calculate the Round Robin user list
-          ORG_TOKEN: ${{ secrets.ORG_READ_TOKEN }} 
-        with:
-          # We use the PAT if available, otherwise fall back to GITHUB_TOKEN
-          # (Note: Team lookup will fail without the PAT, but the script handles that gracefully)
-          github-token: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
-          script: |
-            const closedIssueNum = context.issue.number;
-            const { owner, repo } = context.repo;
-            
-            console.log(`[DRY RUN] Issue #${closedIssueNum} closed. Scanning open issues for dependencies...`);
+runs:
+  using: "composite"
+  steps:
+    - id: scanner
+      name: Scan Dependencies
+      uses: actions/github-script@v7
+      env:
+        AUTH_TOKEN: ${{ inputs.token }}
+      with:
+        # We use the passed input token for the API calls
+        github-token: ${{ inputs.token }}
+        script: |
+          const closedIssueNum = context.issue.number;
+          const { owner, repo } = context.repo;
+          
+          console.log(`Checking for issues waiting on #${closedIssueNum}...`);
 
-            // 1. List all OPEN issues
-            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
-              owner,
-              repo,
-              state: 'open',
-            });
+          // 1. List all OPEN issues
+          // Note: We use the input token specifically for the scan to ensure scope access
+          const octokit = github.getOctokit(process.env.AUTH_TOKEN);
+          
+          const openIssues = await octokit.paginate(octokit.rest.issues.listForRepo, {
+            owner, repo, state: 'open',
+          });
 
-            console.log(`[DRY RUN] found ${openIssues.length} open issues to check.`);
+          let unblockedList = [];
 
-            for (const issue of openIssues) {
-              try {
-                // 2. Check Upstream Dependencies (The "Blocked By" check)
-                const { data: blockers } = await github.request('GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by', {
-                    owner,
-                    repo,
-                    issue_number: issue.number,
-                    headers: {
-                      'X-GitHub-Api-Version': '2022-11-28'
-                    }
-                });
+          for (const issue of openIssues) {
+            try {
+              // 2. Check Upstream Dependencies (The verified endpoint)
+              const { data: blockers } = await octokit.request('GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by', {
+                  owner, repo, issue_number: issue.number,
+                  headers: { 'X-GitHub-Api-Version': '2022-11-28' }
+              });
 
-                // 3. Check if the issue that JUST closed is in the list
-                const wasBlockedByThis = blockers.some(b => b.number === closedIssueNum);
+              // 3. Logic: Was it blocked by the closed issue?
+              const wasBlockedByThis = blockers.some(b => b.number === closedIssueNum);
 
-                if (wasBlockedByThis) {
-                   console.log(`\n---------------------------------------------------`);
-                   console.log(`MATCH: Issue #${issue.number} ("${issue.title}") was waiting on #${closedIssueNum}.`);
-                   
-                   // 4. Check if other blockers remain
-                   const remainingBlockers = blockers.filter(b => b.number !== closedIssueNum && b.state === 'open');
-                   
-                   if (remainingBlockers.length === 0) {
-                      console.log(`STATUS: UNBLOCKED! All dependencies are cleared.`);
-                      
-                      // 5. Simulate Round Robin Assignment
-                      try {
-                          const { data: members } = await github.rest.teams.listMembersInOrg({
-                              org: process.env.ORG_NAME,
-                              team_slug: process.env.TEAM_SLUG,
-                          });
-                          
-                          if (members.length > 0) {
-                              const index = issue.number % members.length;
-                              const assignee = members[index].login;
-                              
-                              console.log(`ACTION: [DRY RUN] Would assign #${issue.number} to @${assignee}`);
-                              console.log(`ACTION: [DRY RUN] Would post comment: "Issue #${closedIssueNum} is closed. Auto-assigning @${assignee}."`);
-                          } else {
-                              console.log(`WARNING: Team '${process.env.TEAM_SLUG}' has no members found (or token lacks permission to see them).`);
-                          }
-                      } catch (err) {
-                          console.log(`WARNING: Could not fetch team members for Round Robin calculation.`);
-                          console.log(`REASON: ${err.message} (Did you add ORG_READ_TOKEN?)`);
-                      }
-
-                   } else {
-                      const blockerList = remainingBlockers.map(b => `#${b.number}`).join(', ');
-                      console.log(`STATUS: STILL BLOCKED. Waiting on: ${blockerList}`);
-                   }
-                   console.log(`---------------------------------------------------\n`);
-                }
-              } catch (err) {
-                 console.log(`[DRY RUN] Skipped check for #${issue.number}: ${err.message}`);
+              if (wasBlockedByThis) {
+                 // 4. Logic: Is it now fully clear? (No other open blockers)
+                 const remainingBlockers = blockers.filter(b => b.number !== closedIssueNum && b.state === 'open');
+                 
+                 if (remainingBlockers.length === 0) {
+                    console.log(`-> Issue #${issue.number} is UNBLOCKED.`);
+                    // Add metadata if you want more than just the number later
+                    unblockedList.push(issue.number); 
+                 }
               }
+            } catch (err) {
+               // 404s or 403s just mean we skip that issue
             }
-            console.log("[DRY RUN] Complete.");
+          }
+          
+          console.log(`Found ${unblockedList.length} unblocked issues.`);
+          return unblockedList;
+
+    - id: check_count
+      shell: bash
+      run: |
+        count=$(echo '${{ steps.scanner.outputs.result }}' | jq '. | length')
+        if [ "$count" -gt "0" ]; then
+          echo "has_issues=true" >> $GITHUB_OUTPUT
+        else
+          echo "has_issues=false" >> $GITHUB_OUTPUT
+        fi
