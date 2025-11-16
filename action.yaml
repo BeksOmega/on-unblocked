@@ -2,8 +2,9 @@ name: 'Find Unblocked Issues'
 description: 'Detects issues that were unblocked by the closing of the current issue.'
 inputs:
   token:
-    description: 'GITHUB_TOKEN or PAT with access to read issues and orgs'
-    required: true
+    description: 'GITHUB_TOKEN or PAT with access to read issues and orgs. Defaults to the standard GITHUB_TOKEN.'
+    required: false
+    default: ${{ github.token }}
 outputs:
   issues:
     description: 'A JSON array of issue numbers that are now unblocked (e.g. [12, 45])'
