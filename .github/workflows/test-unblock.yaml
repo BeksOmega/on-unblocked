@@ -19,7 +19,7 @@ jobs:
       - name: Find Unblocked Issues
         id: finder
         # Point to the local action folder we created in Part 1
-        uses: ./.github/actions/action.yaml
+        uses: ./.github/actions
         with:
           token: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
