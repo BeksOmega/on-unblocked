@@ -34,7 +34,7 @@ jobs:
         issue-number: ${{ fromJson(needs.detect-unblocked.outputs.matrix) }}
     steps:
       - name: Log Information
-        run: echo "Processing Unblocked Issue #$ISSUE_NUMBER"
+        run: echo "Processing Unblocked Issue $ISSUE_NUMBER"
         env:
           ISSUE_NUMBER: ${{ matrix.issue-number }}
 
