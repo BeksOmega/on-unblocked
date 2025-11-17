@@ -2,8 +2,9 @@ name: 'Find Unblocked Issues'
 description: 'Detects issues that were unblocked by the closing of the current issue.'
 inputs:
   token:
-    description: 'GITHUB_TOKEN or PAT with access to read issues and orgs'
-    required: true
+    description: 'GITHUB_TOKEN or PAT with access to read issues'
+    required: false
+    default: ${{ github.token }}
 outputs:
   issues:
     description: 'A JSON array of issue numbers that are now unblocked (e.g. [12, 45])'
@@ -23,7 +24,6 @@ runs:
       name: Scan Dependencies
       uses: actions/github-script@v7
       with:
-        # We use the passed input token for the API calls
         github-token: ${{ inputs.token }}
         script: |
           const closedIssueNum = context.issue.number;

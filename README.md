@@ -6,7 +6,7 @@ This GitHub Action detects issues that were unblocked by the closing of another 
 
 | Name    | Description                                                  | Required |
 |---------|--------------------------------------------------------------|----------|
-| `token` | `GITHUB_TOKEN` or a PAT with `issues:read` and `orgs:read`. | `true`   |
+| `token` | `GITHUB_TOKEN` or a PAT with `issues:read`. | `false`  |
 
 ## Outputs
 
@@ -17,6 +17,8 @@ This GitHub Action detects issues that were unblocked by the closing of another 
 
 ## Usage
 
+**Note:** When using the default `GITHUB_TOKEN`, you must grant the appropriate permissions to the job that runs this action. See the example below.
+
 ```yaml
 name: Handle Unblocked Issues
 
@@ -24,14 +26,12 @@ on:
   issues:
     types: [closed]
 
-permissions:
-  # For the labeling
-  issues: write
-
 jobs:
   # JOB 1: Find the issues
   detect-unblocked:
     runs-on: ubuntu-latest
+    permissions:
+      issues: read
     outputs:
       # Pass the JSON array to the next job
       matrix: ${{ steps.finder.outputs.issues }}
@@ -43,14 +43,14 @@ jobs:
       - name: Find Unblocked Issues
         id: finder
         uses: BeksOmega/on-unblocked@v1
-        with:
-          token: ${{ secrets.ORG_READ_TOKEN || secrets.GITHUB_TOKEN }}
 
   # JOB 2: Run generic actions for EACH unblocked issue
   process-unblocked-issues:
     needs: detect-unblocked
     if: needs.detect-unblocked.outputs.found == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     strategy:
       matrix:
         # Parse the JSON array from the previous job
